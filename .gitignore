@@ -1,0 +1,6 @@
+node_modules/
+dist/
+mnt/
+.env
+canvas.ops.jsonl
+sessions.json
