@@ -161,7 +161,7 @@ wss.on('connection', (ws) => {
     // Persist and broadcast
     const stored = { id: opIdCounter++, sessionId: sessionId || null, ...op };
     ops.push(stored);
-    persistOp(stored).catch(() => {});
+    persistOp(stored).catch(err => console.error('Redis persistOp failed:', err.message));
 
     broadcastAll(JSON.stringify({ type: 'op', op: stored }));
   });

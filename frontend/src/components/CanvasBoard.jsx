@@ -232,6 +232,27 @@ export default function CanvasBoard({
     }
   }, [])
 
+  // ── Visibility-based tile eviction ────────────────────────────────────────
+  const evictFarTiles = useCallback(() => {
+    const vp = viewportRef.current
+    if (!vp) return
+    const { x, y, scale } = transform.current
+    const KEEP = 2   // keep tiles within 2 tile-widths outside viewport
+    const keepMinTX = Math.max(0, Math.floor(-x / scale / TILE_SIZE) - KEEP)
+    const keepMinTY = Math.max(0, Math.floor(-y / scale / TILE_SIZE) - KEEP)
+    const keepMaxTX = Math.min(TILES_X - 1, Math.floor((-x + vp.clientWidth)  / scale / TILE_SIZE) + KEEP)
+    const keepMaxTY = Math.min(TILES_Y - 1, Math.floor((-y + vp.clientHeight) / scale / TILE_SIZE) + KEEP)
+    for (const [key, { canvas }] of tilesRef.current.entries()) {
+      const [kx, ky] = key.split(',').map(Number)
+      if (kx < keepMinTX || kx > keepMaxTX || ky < keepMinTY || ky > keepMaxTY) {
+        canvas.remove()
+        tilesRef.current.delete(key)
+        const i = tileOrderRef.current.indexOf(key)
+        if (i !== -1) tileOrderRef.current.splice(i, 1)
+      }
+    }
+  }, [])
+
   // ── Overlay (viewport-space) ───────────────────────────────────────────────
   const overlayCtx   = () => overlayRef.current?.getContext('2d')
   const clearOverlay = () => {
@@ -249,8 +270,9 @@ export default function CanvasBoard({
     if (wrapperRef.current)
       wrapperRef.current.style.transform = `translate(${x}px,${y}px) scale(${scale})`
     onZoomChange?.(Math.round(scale * 100))
+    evictFarTiles()
     ensureVisibleTiles()
-  }, [onZoomChange, ensureVisibleTiles])
+  }, [onZoomChange, evictFarTiles, ensureVisibleTiles])
 
   const toCanvas = useCallback((e) => {
     const vp = viewportRef.current.getBoundingClientRect()
@@ -290,12 +312,22 @@ export default function CanvasBoard({
     const url = API_URL ? `${API_URL}/api/canvas` : '/api/canvas'
     fetch(url)
       .then(r => r.json())
-      .then(ops => {
-        opsRef.current = ops
-        // Tear down any blank tiles created before ops loaded so they replay correctly
-        for (const { canvas } of tilesRef.current.values()) canvas.remove()
-        tilesRef.current.clear()
-        tileOrderRef.current = []
+      .then(loadedOps => {
+        opsRef.current = loadedOps
+        // Redraw all tiles that were created blank before ops arrived
+        for (const [key, { ctx }] of tilesRef.current.entries()) {
+          const [tx, ty] = key.split(',').map(Number)
+          ctx.clearRect(0, 0, TILE_SIZE, TILE_SIZE)
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE)
+          const offX = tx * TILE_SIZE, offY = ty * TILE_SIZE
+          for (const op of loadedOps) {
+            if (opHitsTile(op, tx, ty)) {
+              ctx.save(); ctx.translate(-offX, -offY); applyOp(ctx, op); ctx.restore()
+            }
+          }
+        }
+        // Create any visible tiles not yet in the map
         ensureVisibleTiles()
       })
       .catch(() => ensureVisibleTiles())
