@@ -62,7 +62,7 @@ export default function App() {
             <span className="logo-text">Infini<span>Canvas</span></span>
           </div>
           <div className="header-divider" />
-          <span className="canvas-tag">2048 × 2048</span>
+          <span className="canvas-tag">65536 × 65536</span>
         </div>
 
         <div className="header-right">

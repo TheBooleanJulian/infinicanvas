@@ -7,8 +7,8 @@ const TILE_SIZE = 1024           // 4 MB per tile (vs 16 MB at 2048)
 const TILES_X   = CANVAS_W / TILE_SIZE  // 64
 const TILES_Y   = CANVAS_H / TILE_SIZE  // 64
 const INIT_SCALE = 1.0
-const MAX_TILES  = 48            // evict oldest tiles beyond this limit
-const MAX_VIEWPORT_TILES = 16    // never create more than this in one pass
+const MAX_TILES          = 64    // evict oldest tiles beyond this limit
+const MAX_VIEWPORT_TILES = 36    // max tiles loaded per ensureVisibleTiles call
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -167,7 +167,7 @@ export default function CanvasBoard({
 
     const canvas = document.createElement('canvas')
     canvas.width = TILE_SIZE; canvas.height = TILE_SIZE
-    canvas.style.cssText = `position:absolute;left:${tx * TILE_SIZE}px;top:${ty * TILE_SIZE}px`
+    canvas.style.cssText = `position:absolute;left:${tx * TILE_SIZE}px;top:${ty * TILE_SIZE}px;display:block;border:0;outline:0`
     const ctx = canvas.getContext('2d')
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE)
@@ -196,13 +196,24 @@ export default function CanvasBoard({
     const maxTX = Math.min(TILES_X - 1, Math.floor((-x + vp.clientWidth)  / scale / TILE_SIZE) + BUFFER)
     const maxTY = Math.min(TILES_Y - 1, Math.floor((-y + vp.clientHeight) / scale / TILE_SIZE) + BUFFER)
 
-    // Guard: skip if zoomed too far out (would create too many tiles at once)
     const count = (maxTX - minTX + 1) * (maxTY - minTY + 1)
-    if (count > MAX_VIEWPORT_TILES) return
 
-    for (let tx = minTX; tx <= maxTX; tx++)
-      for (let ty = minTY; ty <= maxTY; ty++)
-        ensureTile(tx, ty)
+    if (count <= MAX_VIEWPORT_TILES) {
+      // All visible tiles fit within limit — load all
+      for (let tx = minTX; tx <= maxTX; tx++)
+        for (let ty = minTY; ty <= maxTY; ty++)
+          ensureTile(tx, ty)
+    } else {
+      // Zoomed out far — load only tiles closest to the viewport centre
+      const cTX = Math.floor((-x + vp.clientWidth  / 2) / scale / TILE_SIZE)
+      const cTY = Math.floor((-y + vp.clientHeight / 2) / scale / TILE_SIZE)
+      const half = Math.floor(Math.sqrt(MAX_VIEWPORT_TILES) / 2)
+      const loX = Math.max(minTX, cTX - half), hiX = Math.min(maxTX, cTX + half)
+      const loY = Math.max(minTY, cTY - half), hiY = Math.min(maxTY, cTY + half)
+      for (let tx = loX; tx <= hiX; tx++)
+        for (let ty = loY; ty <= hiY; ty++)
+          ensureTile(tx, ty)
+    }
   }, [ensureTile])
 
   // ── Apply op to all existing tiles it hits ─────────────────────────────────
@@ -392,7 +403,7 @@ export default function CanvasBoard({
 
     // Update cursor coordinates (centred: 0,0 = middle of canvas)
     const raw = toCanvas(e)
-    onCursorMove?.({ x: Math.round(raw.x - CANVAS_W / 2), y: Math.round(raw.y - CANVAS_H / 2) })
+    onCursorMove?.({ x: Math.round(raw.x - CANVAS_W / 2), y: -Math.round(raw.y - CANVAS_H / 2) })
 
     if (!isDrawing.current) return
 
@@ -545,7 +556,7 @@ export default function CanvasBoard({
       <div className="dot-grid" />
 
       <div ref={wrapperRef} className="canvas-wrapper" style={{ transformOrigin: '0 0' }}>
-        <div ref={tileContainerRef} style={{ position: 'relative' }} />
+        <div ref={tileContainerRef} style={{ position: 'relative', background: '#ffffff' }} />
       </div>
 
       <canvas ref={overlayRef} className="overlay-canvas vp-overlay" />
