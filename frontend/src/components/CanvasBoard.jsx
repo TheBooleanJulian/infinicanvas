@@ -493,7 +493,7 @@ export default function CanvasBoard({
     const onWheel = (e) => {
       e.preventDefault()
       const factor   = e.deltaY < 0 ? 1.1 : 0.9
-      const newScale = Math.max(0.01, Math.min(10, transform.current.scale * factor))
+      const newScale = Math.max(0.25, Math.min(1, transform.current.scale * factor))
       const rect = vp.getBoundingClientRect()
       const mx = e.clientX - rect.left, my = e.clientY - rect.top
       transform.current.x = mx - (mx - transform.current.x) * (newScale / transform.current.scale)
@@ -583,7 +583,7 @@ export default function CanvasBoard({
         <button className="corner-btn" title="Zoom in" onClick={() => {
           const vp = viewportRef.current
           const cx = vp.clientWidth / 2, cy = vp.clientHeight / 2
-          const ns = Math.min(10, transform.current.scale * 1.25)
+          const ns = Math.min(1, transform.current.scale * 1.25)
           transform.current.x = cx - (cx - transform.current.x) * (ns / transform.current.scale)
           transform.current.y = cy - (cy - transform.current.y) * (ns / transform.current.scale)
           transform.current.scale = ns; pushTransform()
@@ -593,7 +593,7 @@ export default function CanvasBoard({
         <button className="corner-btn" title="Zoom out" onClick={() => {
           const vp = viewportRef.current
           const cx = vp.clientWidth / 2, cy = vp.clientHeight / 2
-          const ns = Math.max(0.01, transform.current.scale * 0.8)
+          const ns = Math.max(0.25, transform.current.scale * 0.8)
           transform.current.x = cx - (cx - transform.current.x) * (ns / transform.current.scale)
           transform.current.y = cy - (cy - transform.current.y) * (ns / transform.current.scale)
           transform.current.scale = ns; pushTransform()
