@@ -100,6 +100,10 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '5mb' }));
 
 // ── REST API ─────────────────────────────────────────────────────────────────
+app.get('/', (_req, res) =>
+  res.json({ name: 'InfiniCanvas API', status: 'ok' })
+);
+
 app.get('/health', (_req, res) =>
   res.json({ status: 'ok', clients: wss.clients.size, ops: ops.length })
 );
