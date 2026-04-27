@@ -76,6 +76,13 @@ body {
   font-weight: 500;
 }
 
+/* Attribution */
+.built-by {
+  font-size: 10px;
+  color: #3a3a3a;
+  letter-spacing: 0.3px;
+}
+
 /* WS badge */
 .ws-badge {
   display: flex;

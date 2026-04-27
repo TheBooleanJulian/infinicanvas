@@ -4,6 +4,7 @@ const http = require('http');
 const fs   = require('fs');
 const path = require('path');
 const cors = require('cors');
+const Redis = require('ioredis');
 
 // ── Input validation ─────────────────────────────────────────────────────────
 const VALID_OP_TYPES = new Set(['stroke', 'line', 'rect', 'circle', 'text']);
@@ -47,53 +48,44 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-// ── JSON File Store ──────────────────────────────────────────────────────────
-// Simple append-log in JSON Lines format (one op per line = fast append, easy read)
-const DB_FILE      = path.join(__dirname, 'canvas.ops.jsonl');
-const SESSION_FILE = path.join(__dirname, 'sessions.json');
+// ── Redis ────────────────────────────────────────────────────────────────────
+const redis = new Redis(process.env.REDIS_URI || process.env.REDIS_URL || 'redis://localhost:6379');
 
-// In-memory operations array (loaded on start)
+const KEYS = { ops: 'canvas:ops', sessions: 'canvas:sessions' };
+
+// In-memory mirror (loaded on start, updated on every write)
 let ops = [];
-let opIdCounter = 0;
-
-// Sessions map: sessionId -> { lastPlacedAt, opCount }
+let opIdCounter = 1;
 let sessions = {};
 
-function loadData() {
-  // Load ops
-  if (fs.existsSync(DB_FILE)) {
-    const lines = fs.readFileSync(DB_FILE, 'utf8').split('\n').filter(Boolean);
-    ops = lines.map(l => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean);
-    opIdCounter = ops.length > 0 ? Math.max(...ops.map(o => o.id)) + 1 : 1;
+async function loadData() {
+  const rawOps = await redis.lrange(KEYS.ops, 0, -1);
+  ops = rawOps.map(r => { try { return JSON.parse(r); } catch { return null; } }).filter(Boolean);
+  opIdCounter = ops.length > 0 ? Math.max(...ops.map(o => o.id)) + 1 : 1;
+
+  const rawSessions = await redis.hgetall(KEYS.sessions);
+  if (rawSessions) {
+    sessions = {};
+    for (const [k, v] of Object.entries(rawSessions)) {
+      try { sessions[k] = JSON.parse(v); } catch {}
+    }
   }
-  // Load sessions
-  if (fs.existsSync(SESSION_FILE)) {
-    try { sessions = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')) } catch {}
-  }
 }
 
-function persistOp(op) {
-  fs.appendFileSync(DB_FILE, JSON.stringify(op) + '\n', 'utf8');
+async function persistOp(op) {
+  await redis.rpush(KEYS.ops, JSON.stringify(op));
 }
 
-function persistSessions() {
-  // Debounce: write sessions at most every 2s
-  if (persistSessions._timer) return;
-  persistSessions._timer = setTimeout(() => {
-    persistSessions._timer = null;
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(sessions), 'utf8');
-  }, 2000);
+async function persistSession(sessionId, data) {
+  await redis.hset(KEYS.sessions, sessionId, JSON.stringify(data));
 }
 
-function clearStore() {
+async function clearStore() {
   ops = [];
   opIdCounter = 1;
   sessions = {};
-  fs.writeFileSync(DB_FILE, '', 'utf8');
-  fs.writeFileSync(SESSION_FILE, '{}', 'utf8');
+  await redis.del(KEYS.ops, KEYS.sessions);
 }
-
-loadData();
 
 // ── Middleware ───────────────────────────────────────────────────────────────
 app.use(cors({ origin: '*' }));
@@ -114,12 +106,12 @@ app.get('/api/canvas', (_req, res) => {
   res.json(ops);
 });
 
-app.post('/api/clear', (req, res) => {
+app.post('/api/clear', async (req, res) => {
   const { secret } = req.body;
   if (process.env.CLEAR_SECRET && secret !== process.env.CLEAR_SECRET) {
     return res.status(403).json({ error: 'Forbidden' });
   }
-  clearStore();
+  await clearStore();
   broadcastAll(JSON.stringify({ type: 'clear' }));
   res.json({ ok: true });
 });
@@ -147,7 +139,7 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'online', count: wss.clients.size }));
   pushOnlineCount();
 
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch { return; }
 
@@ -161,17 +153,17 @@ wss.on('connection', (ws) => {
     if (sessionId) {
       const sess = sessions[sessionId];
       if (sess && now - sess.lastPlacedAt < COOLDOWN_MS) return;
-      sessions[sessionId] = { lastPlacedAt: now, opCount: (sess?.opCount ?? 0) + 1 };
-      persistSessions();
+      const updated = { lastPlacedAt: now, opCount: (sess?.opCount ?? 0) + 1 };
+      sessions[sessionId] = updated;
+      persistSession(sessionId, updated).catch(() => {});
     }
 
     // Persist and broadcast
     const stored = { id: opIdCounter++, sessionId: sessionId || null, ...op };
     ops.push(stored);
-    persistOp(stored);
+    persistOp(stored).catch(() => {});
 
-    const out = JSON.stringify({ type: 'op', op: stored });
-    broadcastAll(out);
+    broadcastAll(JSON.stringify({ type: 'op', op: stored }));
   });
 
   ws.on('close', () => pushOnlineCount());
@@ -194,6 +186,12 @@ process.on('SIGINT',  shutdown);
 
 // ── Start ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, '0.0.0.0', () =>
-  console.log(`✦ InfiniCanvas backend · port ${PORT} · ${ops.length} ops loaded`)
-);
+
+loadData()
+  .then(() => server.listen(PORT, '0.0.0.0', () =>
+    console.log(`✦ InfiniCanvas backend · port ${PORT} · ${ops.length} ops loaded from Redis`)
+  ))
+  .catch(err => {
+    console.error('Failed to load data from Redis:', err.message);
+    process.exit(1);
+  });
