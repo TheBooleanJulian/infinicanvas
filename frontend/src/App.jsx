@@ -42,6 +42,7 @@ export default function App() {
   const [fontSize, setFontSize] = useState(24)
   const [online, setOnline]     = useState(1)
   const [zoom, setZoom]         = useState(100)
+  const [cursor, setCursor]     = useState(null)  // { x, y } in canvas coords centred on (0,0)
   const [wsStatus, setWsStatus] = useState('connecting') // connecting | live | offline
   const sessionId = useRef(genSessionId())
 
@@ -74,6 +75,12 @@ export default function App() {
             <span className="zoom-label">ZOOM</span>
             <span className="zoom-val">{zoom}%</span>
           </div>
+          {cursor && (
+            <div className="cursor-display">
+              <span className="zoom-label">XY</span>
+              <span className="zoom-val">{cursor.x}, {cursor.y}</span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -96,6 +103,7 @@ export default function App() {
           onOnlineChange={setOnline}
           onZoomChange={setZoom}
           onStatusChange={setWsStatus}
+          onCursorMove={setCursor}
           zoom={zoom}
         />
       </div>

@@ -38,6 +38,13 @@
   pointer-events: none;
 }
 
+.vp-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
 /* Text input overlay */
 .text-overlay {
   position: absolute;

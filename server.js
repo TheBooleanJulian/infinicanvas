@@ -8,7 +8,7 @@ const Redis = require('ioredis');
 
 // ── Input validation ─────────────────────────────────────────────────────────
 const VALID_OP_TYPES = new Set(['stroke', 'line', 'rect', 'circle', 'text']);
-const CANVAS_MAX = 2048;
+const CANVAS_MAX = 65536;
 
 function isNum(v) { return typeof v === 'number' && isFinite(v); }
 function inBounds(v) { return isNum(v) && v >= -CANVAS_MAX && v <= CANVAS_MAX * 2; }

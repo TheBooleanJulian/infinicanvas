@@ -137,6 +137,21 @@ body {
   min-width: 38px;
 }
 
+.cursor-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.cursor-display .zoom-val {
+  min-width: 100px;
+}
+
 /* Workspace */
 .workspace {
   display: flex;
