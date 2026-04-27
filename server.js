@@ -99,11 +99,13 @@ loadData();
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '5mb' }));
 
-// ── REST API ─────────────────────────────────────────────────────────────────
-app.get('/', (_req, res) =>
-  res.json({ name: 'InfiniCanvas API', status: 'ok' })
-);
+// ── Static frontend ──────────────────────────────────────────────────────────
+const DIST = path.join(__dirname, 'frontend', 'dist');
+if (fs.existsSync(DIST)) {
+  app.use(express.static(DIST));
+}
 
+// ── REST API ─────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) =>
   res.json({ status: 'ok', clients: wss.clients.size, ops: ops.length })
 );
@@ -175,6 +177,11 @@ wss.on('connection', (ws) => {
   ws.on('close', () => pushOnlineCount());
   ws.on('error', () => { /* socket errors are handled by the close event */ });
 });
+
+// SPA fallback — serve index.html for any non-API route
+if (fs.existsSync(DIST)) {
+  app.get('*', (req, res) => res.sendFile(path.join(DIST, 'index.html')));
+}
 
 // ── Graceful shutdown ────────────────────────────────────────────────────────
 function shutdown() {

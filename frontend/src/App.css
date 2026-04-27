@@ -1,0 +1,138 @@
+:root {
+  --teal: #00d4c8;
+  --bg: #111111;
+  --surface: #1a1a1a;
+  --border: #222222;
+  --text: #e0e0e0;
+  --muted: #666666;
+  --header-h: 48px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Outfit', 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────── */
+.header {
+  height: var(--header-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.header-left,
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-text {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+
+.logo-text span { color: var(--teal); }
+
+.header-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+}
+
+.canvas-tag {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+/* WS badge */
+.ws-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 10px;
+  background: var(--bg);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+
+.ws-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.ws-live .ws-dot {
+  background: #4ade80;
+  box-shadow: 0 0 6px #4ade8066;
+}
+
+.ws-live { color: var(--text); }
+
+.ws-offline .ws-dot { background: #f87171; }
+
+/* Zoom display */
+.zoom-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+
+.zoom-label {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.8px;
+  font-weight: 600;
+}
+
+.zoom-val {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 38px;
+}
+
+/* Workspace */
+.workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}

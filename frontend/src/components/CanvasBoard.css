@@ -1,0 +1,105 @@
+.viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #0d0d0d;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dot-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, #2a2a2a 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.canvas-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.main-canvas {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.overlay-canvas {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* Text input overlay */
+.text-overlay {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 20;
+}
+
+.text-field {
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid #00d4c8;
+  outline: none;
+  font-size: var(--fs, 24px);
+  font-family: 'Outfit', 'Segoe UI', sans-serif;
+  min-width: 120px;
+  padding: 2px 0;
+  caret-color: #00d4c8;
+}
+
+.text-hint {
+  font-size: 10px;
+  color: #888;
+  white-space: nowrap;
+}
+
+.text-hint kbd {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: inherit;
+  font-size: 9px;
+}
+
+/* Corner controls */
+.corner-controls {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+}
+
+.corner-btn {
+  width: 30px;
+  height: 30px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  color: #888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.corner-btn:hover {
+  background: #2a2a2a;
+  color: #e0e0e0;
+}
