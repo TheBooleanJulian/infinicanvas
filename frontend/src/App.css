@@ -78,9 +78,14 @@ body {
 
 /* Attribution */
 .built-by {
-  font-size: 10px;
-  color: #3a3a3a;
+  font-size: 11px;
+  color: #aaaaaa;
   letter-spacing: 0.3px;
+}
+
+.built-by-name {
+  color: var(--teal);
+  font-weight: 600;
 }
 
 /* WS badge */

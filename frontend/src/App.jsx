@@ -66,7 +66,7 @@ export default function App() {
         </div>
 
         <div className="header-right">
-          <span className="built-by">built by TheBooleanJulian</span>
+          <span className="built-by">built by <span className="built-by-name">TheBooleanJulian</span></span>
           <div className={`ws-badge ws-${wsStatus}`}>
             <span className="ws-dot" />
             <span>{wsStatus === 'live' ? `${online} online` : wsStatus}</span>
