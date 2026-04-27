@@ -96,6 +96,7 @@ export default function App() {
           onOnlineChange={setOnline}
           onZoomChange={setZoom}
           onStatusChange={setWsStatus}
+          zoom={zoom}
         />
       </div>
     </div>

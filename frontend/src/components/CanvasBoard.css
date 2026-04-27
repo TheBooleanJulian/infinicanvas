@@ -74,6 +74,23 @@
   font-size: 9px;
 }
 
+/* View-only badge */
+.viewonly-badge {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #666;
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 10;
+}
+
 /* Corner controls */
 .corner-controls {
   position: absolute;

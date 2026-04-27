@@ -90,7 +90,7 @@ function applyOp(ctx, op) {
 /* ── CanvasBoard ────────────────────────────── */
 export default function CanvasBoard({
   tool, color, brushSize, filled, fontSize,
-  sessionId, onOnlineChange, onZoomChange, onStatusChange,
+  sessionId, onOnlineChange, onZoomChange, onStatusChange, zoom,
 }) {
   const viewportRef = useRef(null)
   const wrapperRef  = useRef(null)
@@ -123,6 +123,9 @@ export default function CanvasBoard({
   useEffect(() => { sizeRef.current = brushSize }, [brushSize])
   useEffect(() => { filledRef.current = filled }, [filled])
   useEffect(() => { fontSizeRef.current = fontSize }, [fontSize])
+
+  // Dismiss any open text input when switching to view-only mode
+  useEffect(() => { if (zoom < 100) setTextState(null) }, [zoom])
 
   // Text placement UI
   const [textState, setTextState] = useState(null) // { sx, sy, cx, cy }
@@ -261,6 +264,9 @@ export default function CanvasBoard({
       return
     }
     if (e.button !== 0) return
+
+    // View-only below 100% zoom
+    if (transform.current.scale < 1) return
 
     const c = toCanvas(e)
 
@@ -432,11 +438,12 @@ export default function CanvasBoard({
   }, [textState, textVal, commitAndSend])
 
   /* ── Cursor ─────────────────────────────── */
+  const viewOnly = zoom < 100
   const cursors = {
     pen: 'crosshair', eraser: 'cell', line: 'crosshair',
     rect: 'crosshair', circle: 'crosshair', text: 'text', pan: 'grab',
   }
-  const cursor = spaceHeld.current ? 'grab' : (cursors[tool] || 'crosshair')
+  const cursor = spaceHeld.current ? 'grab' : viewOnly ? 'default' : (cursors[tool] || 'crosshair')
 
   /* ── Text input position (scaled) ──────── */
   const textInputStyle = textState ? {
@@ -495,6 +502,13 @@ export default function CanvasBoard({
           <div className="text-hint">
             <kbd>Enter</kbd> to place · <kbd>Esc</kbd> to cancel
           </div>
+        </div>
+      )}
+
+      {/* View-only badge */}
+      {viewOnly && (
+        <div className="viewonly-badge">
+          view only — zoom to 100% to draw
         </div>
       )}
 
