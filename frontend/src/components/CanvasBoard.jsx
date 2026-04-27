@@ -3,10 +3,12 @@ import './CanvasBoard.css'
 
 const CANVAS_W  = 65536
 const CANVAS_H  = 65536
-const TILE_SIZE = 2048
-const TILES_X   = CANVAS_W / TILE_SIZE  // 32
-const TILES_Y   = CANVAS_H / TILE_SIZE  // 32
+const TILE_SIZE = 1024           // 4 MB per tile (vs 16 MB at 2048)
+const TILES_X   = CANVAS_W / TILE_SIZE  // 64
+const TILES_Y   = CANVAS_H / TILE_SIZE  // 64
 const INIT_SCALE = 1.0
+const MAX_TILES  = 48            // evict oldest tiles beyond this limit
+const MAX_VIEWPORT_TILES = 16    // never create more than this in one pass
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -141,8 +143,9 @@ export default function CanvasBoard({
   useEffect(() => { fontSizeRef.current = fontSize }, [fontSize])
   useEffect(() => { if (zoom < 100) setTextState(null) }, [zoom])
 
-  const opsRef   = useRef([])
-  const tilesRef = useRef(new Map())
+  const opsRef       = useRef([])
+  const tilesRef     = useRef(new Map())
+  const tileOrderRef = useRef([])   // FIFO for eviction
 
   const [textState, setTextState] = useState(null)
   const [textVal,   setTextVal  ] = useState('')
@@ -152,6 +155,15 @@ export default function CanvasBoard({
     if (tx < 0 || tx >= TILES_X || ty < 0 || ty >= TILES_Y) return null
     const key = `${tx},${ty}`
     if (tilesRef.current.has(key)) return tilesRef.current.get(key)
+
+    // Evict oldest tile when over limit
+    if (tilesRef.current.size >= MAX_TILES) {
+      const oldKey = tileOrderRef.current.shift()
+      if (oldKey) {
+        tilesRef.current.get(oldKey)?.canvas.remove()
+        tilesRef.current.delete(oldKey)
+      }
+    }
 
     const canvas = document.createElement('canvas')
     canvas.width = TILE_SIZE; canvas.height = TILE_SIZE
@@ -170,6 +182,7 @@ export default function CanvasBoard({
     tileContainerRef.current?.appendChild(canvas)
     const tile = { canvas, ctx }
     tilesRef.current.set(key, tile)
+    tileOrderRef.current.push(key)
     return tile
   }, [])
 
@@ -182,6 +195,11 @@ export default function CanvasBoard({
     const minTY = Math.max(0, Math.floor(-y / scale / TILE_SIZE) - BUFFER)
     const maxTX = Math.min(TILES_X - 1, Math.floor((-x + vp.clientWidth)  / scale / TILE_SIZE) + BUFFER)
     const maxTY = Math.min(TILES_Y - 1, Math.floor((-y + vp.clientHeight) / scale / TILE_SIZE) + BUFFER)
+
+    // Guard: skip if zoomed too far out (would create too many tiles at once)
+    const count = (maxTX - minTX + 1) * (maxTY - minTY + 1)
+    if (count > MAX_VIEWPORT_TILES) return
+
     for (let tx = minTX; tx <= maxTX; tx++)
       for (let ty = minTY; ty <= maxTY; ty++)
         ensureTile(tx, ty)
@@ -266,6 +284,7 @@ export default function CanvasBoard({
         // Tear down any blank tiles created before ops loaded so they replay correctly
         for (const { canvas } of tilesRef.current.values()) canvas.remove()
         tilesRef.current.clear()
+        tileOrderRef.current = []
         ensureVisibleTiles()
       })
       .catch(() => ensureVisibleTiles())
@@ -526,7 +545,7 @@ export default function CanvasBoard({
       <div className="dot-grid" />
 
       <div ref={wrapperRef} className="canvas-wrapper" style={{ transformOrigin: '0 0' }}>
-        <div ref={tileContainerRef} style={{ position: 'relative', width: CANVAS_W, height: CANVAS_H }} />
+        <div ref={tileContainerRef} style={{ position: 'relative' }} />
       </div>
 
       <canvas ref={overlayRef} className="overlay-canvas vp-overlay" />
