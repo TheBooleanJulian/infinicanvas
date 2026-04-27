@@ -3,7 +3,7 @@ import './CanvasBoard.css'
 
 const CANVAS_W  = 2048
 const CANVAS_H  = 2048
-const INIT_SCALE = 0.35
+const INIT_SCALE = 1.0
 
 // Resolve API/WS URLs — set VITE_API_URL in Zeabur environment
 const API_URL = import.meta.env.VITE_API_URL || ''   // same origin in proxy mode

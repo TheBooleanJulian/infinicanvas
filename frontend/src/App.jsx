@@ -41,7 +41,7 @@ export default function App() {
   const [filled, setFilled]     = useState(false)
   const [fontSize, setFontSize] = useState(24)
   const [online, setOnline]     = useState(1)
-  const [zoom, setZoom]         = useState(40)
+  const [zoom, setZoom]         = useState(100)
   const [wsStatus, setWsStatus] = useState('connecting') // connecting | live | offline
   const sessionId = useRef(genSessionId())
 
