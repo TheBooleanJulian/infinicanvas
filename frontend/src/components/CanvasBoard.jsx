@@ -23,8 +23,8 @@ function applyOp(ctx, op) {
     case 'stroke': {
       const pts = op.points
       if (!pts?.length) break
-      ctx.globalCompositeOperation = op.eraser ? 'destination-out' : 'source-over'
-      ctx.strokeStyle = op.eraser ? 'rgba(0,0,0,1)' : op.color
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.strokeStyle = op.eraser ? '#ffffff' : op.color
       ctx.lineWidth   = op.size
       ctx.lineCap     = 'round'
       ctx.lineJoin    = 'round'
@@ -32,7 +32,7 @@ function applyOp(ctx, op) {
       ctx.moveTo(pts[0].x, pts[0].y)
       if (pts.length === 1) {
         ctx.arc(pts[0].x, pts[0].y, op.size / 2, 0, Math.PI * 2)
-        ctx.fillStyle = op.eraser ? 'rgba(0,0,0,1)' : op.color
+        ctx.fillStyle = op.eraser ? '#ffffff' : op.color
         ctx.fill()
       } else {
         for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
@@ -313,7 +313,7 @@ export default function CanvasBoard({
     onZoomChange?.(Math.round(INIT_SCALE * 100))
 
     const url = API_URL ? `${API_URL}/api/canvas` : '/api/canvas'
-    fetch(url)
+    fetch(url, { cache: 'no-store' })
       .then(r => r.json())
       .then(loadedOps => {
         opsRef.current = loadedOps
@@ -417,8 +417,8 @@ export default function CanvasBoard({
       if (tile) {
         tile.ctx.save()
         tile.ctx.translate(-tx * TILE_SIZE, -ty * TILE_SIZE)
-        tile.ctx.globalCompositeOperation = toolRef.current === 'eraser' ? 'destination-out' : 'source-over'
-        tile.ctx.fillStyle = toolRef.current === 'eraser' ? 'rgba(0,0,0,1)' : colorRef.current
+        tile.ctx.globalCompositeOperation = 'source-over'
+        tile.ctx.fillStyle = toolRef.current === 'eraser' ? '#ffffff' : colorRef.current
         tile.ctx.beginPath()
         tile.ctx.arc(c.x, c.y, sizeRef.current / 2, 0, Math.PI * 2)
         tile.ctx.fill()
@@ -461,8 +461,8 @@ export default function CanvasBoard({
           if (!tile) continue
           tile.ctx.save()
           tile.ctx.translate(-tx * TILE_SIZE, -ty * TILE_SIZE)
-          tile.ctx.globalCompositeOperation = t === 'eraser' ? 'destination-out' : 'source-over'
-          tile.ctx.strokeStyle = t === 'eraser' ? 'rgba(0,0,0,1)' : col
+          tile.ctx.globalCompositeOperation = 'source-over'
+          tile.ctx.strokeStyle = t === 'eraser' ? '#ffffff' : col
           tile.ctx.lineWidth = sz; tile.ctx.lineCap = 'round'; tile.ctx.lineJoin = 'round'
           tile.ctx.beginPath(); tile.ctx.moveTo(prev.x, prev.y); tile.ctx.lineTo(c.x, c.y)
           tile.ctx.stroke(); tile.ctx.restore()
