@@ -10,7 +10,10 @@ const INIT_SCALE = 1.0
 const MAX_TILES          = 64    // evict oldest tiles beyond this limit
 const MAX_VIEWPORT_TILES = 36    // max tiles loaded per ensureVisibleTiles call
 
-const API_URL = import.meta.env.VITE_API_URL || ''
+const _rawApiUrl = import.meta.env.VITE_API_URL || ''
+const API_URL = _rawApiUrl && !_rawApiUrl.startsWith('http')
+  ? `https://${_rawApiUrl.replace(/\/$/, '')}`
+  : _rawApiUrl.replace(/\/$/, '')
 
 // ── Per-op drawing ───────────────────────────────────────────────────────────
 function applyOp(ctx, op) {

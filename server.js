@@ -103,6 +103,7 @@ app.get('/health', (_req, res) =>
 );
 
 app.get('/api/canvas', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.json(ops);
 });
 
