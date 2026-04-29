@@ -133,6 +133,7 @@ export default function CanvasBoard({
   const shapeAnchor = useRef(null)
   const spaceHeld   = useRef(false)
 
+  const pinchDistRef = useRef(null)
   const toolRef      = useRef(tool)
   const colorRef     = useRef(color)
   const sizeRef      = useRef(brushSize)
@@ -532,6 +533,64 @@ export default function CanvasBoard({
     }
     shapeAnchor.current = null
   }, [toCanvas, finishStroke, commitAndSend])
+
+  // ── Touch events (mobile drawing) ─────────────────────────────────────────
+  const onTouchStart = useCallback((e) => {
+    if (e.touches.length === 1) {
+      e.preventDefault()
+      const t = e.touches[0]
+      onMouseDown({ clientX: t.clientX, clientY: t.clientY, button: 0 })
+    } else if (e.touches.length === 2) {
+      e.preventDefault()
+      isPanning.current = false
+      isDrawing.current = false
+    }
+  }, [onMouseDown])
+
+  const onTouchMove = useCallback((e) => {
+    if (e.touches.length === 1) {
+      e.preventDefault()
+      const t = e.touches[0]
+      onMouseMove({ clientX: t.clientX, clientY: t.clientY })
+    } else if (e.touches.length === 2) {
+      e.preventDefault()
+      // Pinch-to-zoom
+      const [a, b] = [e.touches[0], e.touches[1]]
+      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+      if (!pinchDistRef.current) { pinchDistRef.current = dist; return }
+      const factor = dist / pinchDistRef.current
+      pinchDistRef.current = dist
+      const mx = (a.clientX + b.clientX) / 2
+      const my = (a.clientY + b.clientY) / 2
+      const vp = viewportRef.current.getBoundingClientRect()
+      const cx = mx - vp.left, cy = my - vp.top
+      const ns = Math.max(0.25, Math.min(1, transform.current.scale * factor))
+      transform.current.x = cx - (cx - transform.current.x) * (ns / transform.current.scale)
+      transform.current.y = cy - (cy - transform.current.y) * (ns / transform.current.scale)
+      transform.current.scale = ns
+      pushTransform()
+    }
+  }, [onMouseMove, pushTransform])
+
+  const onTouchEnd = useCallback((e) => {
+    e.preventDefault()
+    pinchDistRef.current = null
+    onMouseUp({ clientX: 0, clientY: 0, button: 0 })
+  }, [onMouseUp])
+
+  useEffect(() => {
+    const vp = viewportRef.current
+    vp.addEventListener('touchstart',  onTouchStart, { passive: false })
+    vp.addEventListener('touchmove',   onTouchMove,  { passive: false })
+    vp.addEventListener('touchend',    onTouchEnd,   { passive: false })
+    vp.addEventListener('touchcancel', onTouchEnd,   { passive: false })
+    return () => {
+      vp.removeEventListener('touchstart',  onTouchStart)
+      vp.removeEventListener('touchmove',   onTouchMove)
+      vp.removeEventListener('touchend',    onTouchEnd)
+      vp.removeEventListener('touchcancel', onTouchEnd)
+    }
+  }, [onTouchStart, onTouchMove, onTouchEnd])
 
   // ── Zoom on scroll ─────────────────────────────────────────────────────────
   useEffect(() => {

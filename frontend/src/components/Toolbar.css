@@ -251,3 +251,52 @@
 }
 
 .tip-line { font-size: 10px; color: #444; line-height: 1.9; }
+
+/* ── Mobile: toolbar moves to bottom ─────────────── */
+@media (max-width: 768px) {
+  .toolbar {
+    width: 100%;
+    height: 26vh;
+    min-height: 160px;
+    max-height: 220px;
+    flex-direction: row;
+    border-right: none;
+    border-top: 1px solid #222;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+
+  .tb-section {
+    flex-shrink: 0;
+    border-bottom: none;
+    border-right: 1px solid #1e1e1e;
+    padding: 8px 10px;
+    min-width: max-content;
+  }
+
+  /* 4-column tool grid keeps tools in 2 rows on mobile */
+  .tool-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .tool-btn {
+    padding: 6px 6px 5px;
+    min-width: 46px;
+  }
+
+  /* Palette fewer columns to keep it compact */
+  .palette {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  /* RGB sliders fit within the section width */
+  .rgb-sliders {
+    min-width: 140px;
+  }
+
+  /* Tips hidden on mobile — no keyboard shortcuts */
+  .tb-tips {
+    display: none;
+  }
+}

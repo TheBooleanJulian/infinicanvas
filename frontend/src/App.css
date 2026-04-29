@@ -163,3 +163,20 @@ body {
   flex: 1;
   overflow: hidden;
 }
+
+/* ── Mobile layout ───────────────────────────────── */
+@media (max-width: 768px) {
+  .workspace {
+    flex-direction: column;
+  }
+
+  .canvas-tag,
+  .cursor-display,
+  .built-by {
+    display: none;
+  }
+
+  .header {
+    padding: 0 10px;
+  }
+}
