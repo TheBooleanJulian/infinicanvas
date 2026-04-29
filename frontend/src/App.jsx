@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Component } from 'react'
+import { useState, useRef, useEffect, useCallback, Component } from 'react'
 import CanvasBoard from './components/CanvasBoard'
 import Toolbar from './components/Toolbar'
 import './App.css'
@@ -26,6 +26,11 @@ class ErrorBoundary extends Component {
   }
 }
 
+const _rawApiUrl = import.meta.env.VITE_API_URL || ''
+const API_BASE = _rawApiUrl && !_rawApiUrl.startsWith('http')
+  ? `https://${_rawApiUrl.replace(/\/$/, '')}`
+  : _rawApiUrl.replace(/\/$/, '')
+
 function genSessionId() {
   const stored = localStorage.getItem('infinicanvas_sid')
   if (stored) return stored
@@ -44,7 +49,47 @@ export default function App() {
   const [zoom, setZoom]         = useState(100)
   const [cursor, setCursor]     = useState(null)  // { x, y } in canvas coords centred on (0,0)
   const [wsStatus, setWsStatus] = useState('connecting') // connecting | live | offline
-  const sessionId = useRef(genSessionId())
+  const [timelapseLoading, setTimelapseLoading] = useState(false)
+  const [snapshotCount, setSnapshotCount] = useState(0)
+  const sessionId  = useRef(genSessionId())
+  const captureRef = useRef(null)
+
+  // Auto-capture every 5 minutes
+  useEffect(() => {
+    const doCapture = async () => {
+      const dataUrl = captureRef.current?.()
+      if (!dataUrl) return
+      const png = dataUrl.split(',')[1]
+      try {
+        await fetch(`${API_BASE}/api/snapshots`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ png, timestamp: Date.now() }),
+        })
+        setSnapshotCount(c => c + 1)
+      } catch {}
+    }
+    const id = setInterval(doCapture, 5 * 60 * 1000)
+    // Fetch current count on mount
+    fetch(`${API_BASE}/api/snapshots/count`)
+      .then(r => r.json()).then(d => setSnapshotCount(d.count ?? 0)).catch(() => {})
+    return () => clearInterval(id)
+  }, [])
+
+  const downloadTimelapse = useCallback(async () => {
+    if (timelapseLoading) return
+    setTimelapseLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/snapshots/gif`)
+      if (!res.ok) { alert('No snapshots yet — the canvas auto-captures every 5 minutes.'); return }
+      const blob = await res.blob()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = 'infinicanvas-timelapse.gif'
+      a.click()
+    } catch { alert('Failed to generate timelapse.') }
+    finally { setTimelapseLoading(false) }
+  }, [timelapseLoading])
 
   return (
     <ErrorBoundary>
@@ -66,6 +111,21 @@ export default function App() {
         </div>
 
         <div className="header-right">
+          <button
+            className={`timelapse-btn${timelapseLoading ? ' loading' : ''}`}
+            onClick={downloadTimelapse}
+            disabled={timelapseLoading}
+            title={snapshotCount ? `Download timelapse GIF (${snapshotCount} frame${snapshotCount !== 1 ? 's' : ''})` : 'Captures every 5 min — check back later'}
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="3" width="10" height="10" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M11 6l4-2v8l-4-2V6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+            </svg>
+            <span>{timelapseLoading ? 'Generating…' : 'Timelapse'}</span>
+            {snapshotCount > 0 && !timelapseLoading && (
+              <span className="timelapse-count">{snapshotCount}</span>
+            )}
+          </button>
           <span className="built-by">built by <span className="built-by-name">TheBooleanJulian</span></span>
           <div className={`ws-badge ws-${wsStatus}`}>
             <span className="ws-dot" />
@@ -105,6 +165,7 @@ export default function App() {
           onStatusChange={setWsStatus}
           onCursorMove={setCursor}
           zoom={zoom}
+          captureRef={captureRef}
         />
       </div>
     </div>

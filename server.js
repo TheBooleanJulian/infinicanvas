@@ -5,6 +5,8 @@ const fs   = require('fs');
 const path = require('path');
 const cors = require('cors');
 const Redis = require('ioredis');
+const { GIFEncoder, quantize, applyPalette } = require('gifenc');
+const Jimp = require('jimp');
 
 // ── Input validation ─────────────────────────────────────────────────────────
 const VALID_OP_TYPES = new Set(['stroke', 'line', 'rect', 'circle', 'text']);
@@ -51,7 +53,11 @@ const wss = new WebSocketServer({ server });
 // ── Redis ────────────────────────────────────────────────────────────────────
 const redis = new Redis(process.env.REDIS_URI || process.env.REDIS_URL || 'redis://localhost:6379');
 
-const KEYS = { ops: 'canvas:ops', sessions: 'canvas:sessions' };
+const KEYS = { ops: 'canvas:ops', sessions: 'canvas:sessions', snapshots: 'canvas:snapshots:index' };
+const SNAPSHOT_PREFIX   = 'canvas:snapshot:';
+const MAX_SNAPSHOTS     = 288;   // 24 h at 5-min intervals
+const MAX_GIF_FRAMES    = 100;
+const SNAPSHOT_WINDOW_MS = 5 * 60 * 1000;
 
 // In-memory mirror (loaded on start, updated on every write)
 let ops = [];
@@ -105,6 +111,78 @@ app.get('/health', (_req, res) =>
 app.get('/api/canvas', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json(ops);
+});
+
+// ── Snapshot / Timelapse ─────────────────────────────────────────────────────
+function sampleEvenly(arr, maxLen) {
+  if (arr.length <= maxLen) return arr;
+  const step = arr.length / maxLen;
+  return Array.from({ length: maxLen }, (_, i) => arr[Math.floor(i * step)]);
+}
+
+app.post('/api/snapshots', async (req, res) => {
+  const { png, timestamp } = req.body;
+  if (!png || typeof png !== 'string' || png.length > 2_000_000) {
+    return res.status(400).json({ error: 'Invalid snapshot' });
+  }
+  const ts     = (typeof timestamp === 'number' && isFinite(timestamp)) ? timestamp : Date.now();
+  const bucket = Math.floor(ts / SNAPSHOT_WINDOW_MS);
+  const key    = SNAPSHOT_PREFIX + bucket;
+
+  const stored = await redis.setnx(key, JSON.stringify({ ts, png }));
+  if (stored) {
+    await redis.expire(key, 86400 + 3600);
+    await redis.zadd(KEYS.snapshots, bucket, String(bucket));
+    const count = await redis.zcard(KEYS.snapshots);
+    if (count > MAX_SNAPSHOTS) {
+      const oldest = await redis.zrange(KEYS.snapshots, 0, count - MAX_SNAPSHOTS - 1);
+      if (oldest.length) {
+        await redis.zrem(KEYS.snapshots, ...oldest);
+        await redis.del(...oldest.map(b => SNAPSHOT_PREFIX + b));
+      }
+    }
+  }
+  res.json({ ok: true });
+});
+
+app.get('/api/snapshots/count', async (_req, res) => {
+  const count = await redis.zcard(KEYS.snapshots);
+  res.json({ count });
+});
+
+app.get('/api/snapshots/gif', async (_req, res) => {
+  const buckets = await redis.zrange(KEYS.snapshots, 0, -1);
+  if (!buckets.length) return res.status(404).json({ error: 'No snapshots yet' });
+
+  const selected = sampleEvenly(buckets, MAX_GIF_FRAMES);
+  const frames   = [];
+
+  for (const bucket of selected) {
+    const raw = await redis.get(SNAPSHOT_PREFIX + bucket);
+    if (!raw) continue;
+    try {
+      const { png } = JSON.parse(raw);
+      const img = await Jimp.read(Buffer.from(png, 'base64'));
+      frames.push({ data: img.bitmap.data, width: img.bitmap.width, height: img.bitmap.height });
+    } catch { /* skip corrupt frame */ }
+  }
+
+  if (!frames.length) return res.status(404).json({ error: 'No valid snapshots' });
+
+  const { width, height } = frames[0];
+  const gif = GIFEncoder();
+  for (const frame of frames) {
+    const rgba    = new Uint8ClampedArray(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength);
+    const palette = quantize(rgba, 256);
+    const index   = applyPalette(rgba, palette);
+    gif.writeFrame(index, width, height, { palette, delay: 500 });
+  }
+  gif.finish();
+
+  const buffer = Buffer.from(gif.bytesView());
+  res.setHeader('Content-Type', 'image/gif');
+  res.setHeader('Content-Disposition', 'attachment; filename="infinicanvas-timelapse.gif"');
+  res.send(buffer);
 });
 
 app.post('/api/clear', async (req, res) => {

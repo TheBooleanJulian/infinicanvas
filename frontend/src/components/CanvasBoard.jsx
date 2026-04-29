@@ -118,6 +118,7 @@ function opHitsTile(op, tx, ty) {
 export default function CanvasBoard({
   tool, color, brushSize, filled, fontSize,
   sessionId, onOnlineChange, onZoomChange, onStatusChange, onCursorMove, zoom,
+  captureRef,
 }) {
   const viewportRef      = useRef(null)
   const wrapperRef       = useRef(null)
@@ -312,6 +313,23 @@ export default function CanvasBoard({
       wrapperRef.current.style.transform = `translate(${x}px,${y}px) scale(${scale})`
     }
     onZoomChange?.(Math.round(INIT_SCALE * 100))
+
+    if (captureRef) {
+      captureRef.current = () => {
+        if (!opsRef.current.length) return null
+        const THUMB = 256
+        const off = document.createElement('canvas')
+        off.width = off.height = THUMB
+        const ctx = off.getContext('2d')
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, THUMB, THUMB)
+        ctx.save()
+        ctx.scale(THUMB / CANVAS_W, THUMB / CANVAS_H)
+        for (const op of opsRef.current) applyOp(ctx, op)
+        ctx.restore()
+        return off.toDataURL('image/png')
+      }
+    }
 
     const url = API_URL ? `${API_URL}/api/canvas` : '/api/canvas'
     fetch(url, { cache: 'no-store' })

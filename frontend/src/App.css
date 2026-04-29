@@ -157,6 +157,50 @@ body {
   min-width: 100px;
 }
 
+/* Timelapse button */
+.timelapse-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--muted);
+  font-family: 'Outfit', 'Segoe UI', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.timelapse-btn:hover:not(:disabled) {
+  color: var(--teal);
+  border-color: var(--teal);
+}
+
+.timelapse-btn.loading,
+.timelapse-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.timelapse-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--teal);
+  color: #000;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 /* Workspace */
 .workspace {
   display: flex;
