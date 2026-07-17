@@ -1,141 +1,141 @@
-# ✦ InfiniCanvas
+<div align="center">
 
-A real-time collaborative 65536×65536 pixel canvas. Draw, type, and create together — anywhere on an infinite grid.
+# InfiniCanvas
 
-Built by [TheBooleanJulian](https://github.com/TheBooleanJulian).
+**A real-time collaborative 65536×65536 pixel canvas — draw, type, and create together anywhere on an infinite grid.**
+
+![JavaScript](https://img.shields.io/badge/-JavaScript-F7DF1E?logo=javascript&logoColor=black)
+![Node.js](https://img.shields.io/badge/-Node.js-339933?logo=node.js&logoColor=white)
+![React](https://img.shields.io/badge/-React-61DAFB?logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/-Vite-646CFF?logo=vite&logoColor=white)
+![Redis](https://img.shields.io/badge/-Redis-DC382D?logo=redis&logoColor=white)
+![Zeabur](https://img.shields.io/badge/-Zeabur-6C5CE7)
+![License](https://img.shields.io/badge/license-MIT-00D4C8.svg)
+
+</div>
+
+---
+
+## What it does
+
+InfiniCanvas is a real-time collaborative drawing app built around a single, shared 65536×65536 pixel canvas. Multiple users can draw, annotate, and create simultaneously — changes sync instantly via WebSocket and persist across restarts through Redis. The canvas is rendered as a grid of on-demand tiles so it stays performant regardless of size, and a view-only mode below 100% zoom keeps accidental edits from happening while panning around.
 
 ## Features
 
-- **Pen** — freehand drawing with custom RGB color + brush size
-- **Eraser** — erase strokes cleanly
-- **Line** — straight lines with configurable thickness
-- **Rectangle** — outline or filled rectangles
-- **Circle** — outline or filled ellipses
-- **Text** — place text anywhere with custom font size and color
-- **Pan** — navigate the canvas (middle-click, Space+drag, or H key)
-- **Zoom** — scroll wheel to zoom in/out (1% → 1000%)
+- **Pen** — freehand drawing with custom RGB colour and brush size
+- **Eraser** — clean stroke removal
+- **Line, Rectangle, Circle** — shape tools with configurable thickness and fill
+- **Text** — place text anywhere with custom font size and colour
+- **Pan & Zoom** — middle-click, Space+drag, or H key to pan; scroll wheel to zoom (1%–1000%)
 - **View-only mode** — canvas is read-only below 100% zoom; zoom in to draw
-- **Cursor coordinates** — live XY display in the header (0,0 = centre of canvas)
-- Real-time sync via WebSocket
-- Persistent canvas history via Redis (survives restarts)
-- Online user count
+- **Tiled rendering** — 1024×1024 tiles created on demand, capped at 48 in memory to prevent OOM
+- **Real-time sync** — WebSocket broadcast; online user count displayed live
+- **Persistent history** — all ops stored in Redis and replayed on tile creation
+- **Timelapse GIF** — canvas auto-captured every 5 minutes; downloadable as a GIF
+- **Cursor coordinates** — live XY display in the header (0,0 = canvas centre)
+- **Mobile sidebar** — toolbar collapses to a bottom bar on small screens
+
+## Tech Stack
+
+| Layer | Choice |
+|---|---|
+| Backend | Node.js + Express + `ws` (WebSocket) |
+| Frontend | React + Vite |
+| Persistence | Redis (via `ioredis`) |
+| Image / GIF | `jimp`, `gifenc` |
+| Hosting | Zeabur (single service, frontend built via `postinstall`) |
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- A Redis instance (`redis-server` or `docker run -p 6379:6379 redis`)
+
+```bash
+git clone https://github.com/TheBooleanJulian/infinicanvas
+cd infinicanvas
+npm install          # also builds the React frontend via postinstall
+cp .env.example .env
+# set REDIS_URI in .env
+npm run dev          # backend + frontend served at http://localhost:3001
+```
+
+For frontend hot-reload during development:
+
+```bash
+cd frontend
+npm install
+npm run dev          # http://localhost:5173 — proxies /api and /ws to :3001
+```
+
+## Configuration
+
+| Variable | Required | Description |
+|---|---|---|
+| `REDIS_URI` | Yes | Redis connection string, e.g. `redis://localhost:6379` |
+| `CLEAR_SECRET` | No | Secret token to authorise `POST /api/clear` |
+| `PORT` | No | Server port (default `3001`; auto-set by Zeabur) |
 
 ## Project Structure
 
 ```
 infinicanvas/
-├── server.js           Node.js + Express + WebSocket backend
-├── package.json        Backend deps + frontend build scripts
-├── .env.example        Required environment variables
-└── frontend/           React + Vite frontend
+├── server.js               Node.js + Express + WebSocket backend
+├── package.json            Backend deps + frontend build scripts
+├── .env.example
+└── frontend/               React + Vite frontend
     ├── index.html
     ├── vite.config.js
     ├── package.json
     └── src/
         ├── main.jsx
         ├── App.jsx
-        ├── App.css
         └── components/
             ├── CanvasBoard.jsx
-            ├── CanvasBoard.css
-            ├── Toolbar.jsx
-            └── Toolbar.css
+            └── Toolbar.jsx
 ```
-
-## Local Development
-
-### Prerequisites
-
-- Node.js 18+
-- A local Redis instance (`redis-server` or Docker: `docker run -p 6379:6379 redis`)
-
-### Backend
-
-```bash
-# from repo root
-npm install        # also builds the frontend via postinstall
-npm run dev        # http://localhost:3001
-```
-
-### Frontend (hot-reload dev server)
-
-```bash
-cd frontend
-npm install
-npm run dev        # http://localhost:5173  (proxies /api and /ws to :3001)
-```
-
-Set `REDIS_URI=redis://localhost:6379` in a `.env` file at the repo root (see `.env.example`).
-
-## Deploy on Zeabur (single service)
-
-The backend builds and serves the frontend automatically — only one service needed.
-
-### 1. Push to GitHub
-
-```bash
-git init && git add . && git commit -m "init"
-gh repo create infinicanvas --public --push
-```
-
-### 2. Create Zeabur project
-
-1. Go to [zeabur.com](https://zeabur.com) → New Project
-2. **Add Service → Git** → select your repo (leave Root Directory as `/`)
-   - Zeabur runs `yarn install` (triggers `postinstall` → frontend build), then `npm start`
-3. **Add Service → Marketplace → Redis**
-   - Zeabur automatically injects `REDIS_URI` into your backend service
-
-### 3. Optional env vars (Backend service)
-
-```
-CLEAR_SECRET=your-secret-token    # protects POST /api/clear
-PORT=3001                          # auto-set by Zeabur
-```
-
-## Rendering Architecture
-
-The canvas is 65536×65536 logical pixels, rendered as a grid of **1024×1024 tiles** created on demand as the user pans. Tiles are replayed from Redis ops on creation. A maximum of 48 tiles are kept in memory at once; older tiles are evicted when the limit is reached.
 
 ## API
 
 | Endpoint | Method | Description |
 |---|---|---|
 | `GET /` | GET | Service info |
-| `GET /health` | GET | Status + client count + op count |
-| `GET /api/canvas` | GET | Fetch all draw operations (canvas replay) |
+| `GET /health` | GET | Status, client count, op count |
+| `GET /api/canvas` | GET | Fetch all draw ops for canvas replay |
 | `POST /api/clear` | POST | Clear canvas (requires `{ secret }`) |
 
-## WebSocket Protocol
+## Deployment
 
-**Client → Server**
-```json
-{ "type": "draw", "sessionId": "u_abc123", "op": { "type": "stroke", ... } }
-```
+Deployed on Zeabur as a single service. `npm install` triggers `postinstall`, which builds the React frontend; `npm start` then serves both API and static files from `server.js`. Add a Redis service from the Zeabur marketplace — `REDIS_URI` is injected automatically.
 
-**Server → Client**
-```json
-{ "type": "op",     "op": { "type": "stroke", "sessionId": "...", ... } }
-{ "type": "online", "count": 4 }
-{ "type": "clear" }
-```
+## Status / Roadmap
 
-## Op Types
+- [x] Real-time WebSocket sync + Redis persistence
+- [x] Tiled 65536×65536 canvas with OOM protection
+- [x] Full shape and text tool set
+- [x] Timelapse GIF capture and download
+- [x] Mobile-friendly bottom toolbar
+- [ ] Named rooms / multiple canvases
+- [ ] User attribution per stroke
+- [ ] Undo / redo
 
-| Type | Fields |
-|---|---|
-| `stroke` | `points[{x,y}]`, `color`, `size`, `eraser` |
-| `line` | `x1`, `y1`, `x2`, `y2`, `color`, `size` |
-| `rect` | `x`, `y`, `w`, `h`, `color`, `filled` |
-| `circle` | `cx`, `cy`, `rx`, `ry`, `color`, `filled` |
-| `text` | `x`, `y`, `text`, `color`, `fontSize` |
+## Changelog
 
-Coordinates are in canvas space. (0, 0) is the top-left corner of the 65536×65536 canvas. The UI displays coordinates centred on (0, 0) at the canvas midpoint (32768, 32768).
+- **2026-04-29** — Added timelapse feature: canvas auto-captured every 5 minutes with GIF download; sidebar moved to a bottom bar on mobile
+- **2026-04-28** — Fixed browser and Cloudflare caching on `/api/canvas`; fixed eraser painting white instead of erasing; normalised `VITE_API_URL` handling
+- **2026-04-27 (stability)** — Fixed OOM crashes via smaller tiles, a 48-tile cap, and visibility-based eviction; fixed in-place tile redraw for correct persistence
+- **2026-04-27 (canvas)** — Expanded canvas to 65536×65536 with tiled rendering; added live cursor coordinates; clamped zoom to 25%–100% range; centred initial view on canvas midpoint
+- **2026-04-27 (features)** — Added view-only mode below 100% zoom; updated colour palette to a 24-swatch ColorChecker-style grid; improved attribution and view-only badge visibility
+- **2026-04-27 (persistence)** — Switched persistence backend from in-memory to Redis; added user attribution per op
+- **2026-04-27 (init)** — Initial release: React + Vite frontend scaffolded and wired to Express + WebSocket backend; root route added for deploy
 
-## Clear Canvas
+## License
 
-```bash
-curl -X POST https://your-backend.zeabur.app/api/clear \
-  -H 'Content-Type: application/json' \
-  -d '{"secret":"your-secret-token"}'
-```
+MIT
+
+---
+
+<div align="center">
+<sub>Built by <a href="https://github.com/TheBooleanJulian">@TheBooleanJulian</a></sub>
+</div>

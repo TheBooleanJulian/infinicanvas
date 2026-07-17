@@ -6,3 +6,4 @@ canvas.ops.jsonl
 sessions.json
 frontend/node_modules/
 frontend/dist/
+.claude/
