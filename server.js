@@ -50,6 +50,70 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
+// ── Tile indexing (mirrors frontend/src/components/CanvasBoard.jsx tile math) ─
+const TILE_SIZE = 1024;
+const TILES_X   = CANVAS_MAX / TILE_SIZE; // 64
+const TILES_Y   = CANVAS_MAX / TILE_SIZE; // 64
+
+function getOpTileBounds(op) {
+  const pad = (op.size || op.lineWidth || 2) + 2;
+  let minX, minY, maxX, maxY;
+
+  switch (op.type) {
+    case 'stroke': {
+      if (!op.points?.length) return null;
+      minX = Infinity; minY = Infinity; maxX = -Infinity; maxY = -Infinity;
+      for (const p of op.points) {
+        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+      }
+      minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+      break;
+    }
+    case 'line':
+      minX = Math.min(op.x1, op.x2) - pad; minY = Math.min(op.y1, op.y2) - pad;
+      maxX = Math.max(op.x1, op.x2) + pad; maxY = Math.max(op.y1, op.y2) + pad;
+      break;
+    case 'rect':
+      minX = op.x - pad; minY = op.y - pad;
+      maxX = op.x + op.w + pad; maxY = op.y + op.h + pad;
+      break;
+    case 'circle':
+      minX = op.cx - Math.abs(op.rx) - pad; minY = op.cy - Math.abs(op.ry) - pad;
+      maxX = op.cx + Math.abs(op.rx) + pad; maxY = op.cy + Math.abs(op.ry) + pad;
+      break;
+    case 'text': {
+      const w = (op.text?.length || 1) * op.fontSize * 0.7;
+      minX = op.x - 4; minY = op.y - 4; maxX = op.x + w + 4; maxY = op.y + op.fontSize + 4;
+      break;
+    }
+    default:
+      return { minTX: 0, minTY: 0, maxTX: TILES_X - 1, maxTY: TILES_Y - 1 };
+  }
+  return {
+    minTX: Math.max(0, Math.floor(minX / TILE_SIZE)),
+    minTY: Math.max(0, Math.floor(minY / TILE_SIZE)),
+    maxTX: Math.min(TILES_X - 1, Math.floor(maxX / TILE_SIZE)),
+    maxTY: Math.min(TILES_Y - 1, Math.floor(maxY / TILE_SIZE)),
+  };
+}
+
+// tileIndex: "tx,ty" -> ops[] (same op objects as the main `ops` array)
+let tileIndex = new Map();
+
+function indexOpIntoTiles(op) {
+  const b = getOpTileBounds(op);
+  if (!b) return;
+  for (let tx = b.minTX; tx <= b.maxTX; tx++) {
+    for (let ty = b.minTY; ty <= b.maxTY; ty++) {
+      const key = `${tx},${ty}`;
+      let bucket = tileIndex.get(key);
+      if (!bucket) { bucket = []; tileIndex.set(key, bucket); }
+      bucket.push(op);
+    }
+  }
+}
+
 // ── Redis ────────────────────────────────────────────────────────────────────
 const redis = new Redis(process.env.REDIS_URI || process.env.REDIS_URL || 'redis://localhost:6379');
 
@@ -68,6 +132,9 @@ async function loadData() {
   const rawOps = await redis.lrange(KEYS.ops, 0, -1);
   ops = rawOps.map(r => { try { return JSON.parse(r); } catch { return null; } }).filter(Boolean);
   opIdCounter = ops.length > 0 ? Math.max(...ops.map(o => o.id)) + 1 : 1;
+
+  tileIndex = new Map();
+  for (const op of ops) indexOpIntoTiles(op);
 
   const rawSessions = await redis.hgetall(KEYS.sessions);
   if (rawSessions) {
@@ -90,6 +157,7 @@ async function clearStore() {
   ops = [];
   opIdCounter = 1;
   sessions = {};
+  tileIndex = new Map();
   await redis.del(KEYS.ops, KEYS.sessions);
 }
 
@@ -111,6 +179,19 @@ app.get('/health', (_req, res) =>
 app.get('/api/canvas', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json(ops);
+});
+
+// Ops intersecting a single tile — lets the client load the world lazily
+// instead of scanning the full op log on every tile it creates.
+app.get('/api/canvas/tile', (req, res) => {
+  const tx = Number(req.query.tx);
+  const ty = Number(req.query.ty);
+  if (!Number.isInteger(tx) || !Number.isInteger(ty)
+    || tx < 0 || tx >= TILES_X || ty < 0 || ty >= TILES_Y) {
+    return res.status(400).json({ error: 'Invalid tile coordinates' });
+  }
+  res.set('Cache-Control', 'no-store');
+  res.json(tileIndex.get(`${tx},${ty}`) || []);
 });
 
 // ── Snapshot / Timelapse ─────────────────────────────────────────────────────
@@ -240,6 +321,7 @@ wss.on('connection', (ws) => {
     // Persist and broadcast
     const stored = { id: opIdCounter++, sessionId: sessionId || null, ...op };
     ops.push(stored);
+    indexOpIntoTiles(stored);
     persistOp(stored).catch(err => console.error('Redis persistOp failed:', err.message));
 
     broadcastAll(JSON.stringify({ type: 'op', op: stored }));

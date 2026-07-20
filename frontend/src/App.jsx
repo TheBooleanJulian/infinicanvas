@@ -57,7 +57,7 @@ export default function App() {
   // Auto-capture every 5 minutes
   useEffect(() => {
     const doCapture = async () => {
-      const dataUrl = captureRef.current?.()
+      const dataUrl = await captureRef.current?.()
       if (!dataUrl) return
       const png = dataUrl.split(',')[1]
       try {

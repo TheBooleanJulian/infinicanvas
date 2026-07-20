@@ -109,11 +109,6 @@ function getOpTileBounds(op) {
   }
 }
 
-function opHitsTile(op, tx, ty) {
-  const b = getOpTileBounds(op)
-  return b ? tx >= b.minTX && tx <= b.maxTX && ty >= b.minTY && ty <= b.maxTY : false
-}
-
 // ── Component ────────────────────────────────────────────────────────────────
 export default function CanvasBoard({
   tool, color, brushSize, filled, fontSize,
@@ -148,7 +143,6 @@ export default function CanvasBoard({
   useEffect(() => { fontSizeRef.current = fontSize }, [fontSize])
   useEffect(() => { if (zoom < 100) setTextState(null) }, [zoom])
 
-  const opsRef       = useRef([])
   const tilesRef     = useRef(new Map())
   const tileOrderRef = useRef([])   // FIFO for eviction
 
@@ -177,17 +171,26 @@ export default function CanvasBoard({
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE)
 
-    const offX = tx * TILE_SIZE, offY = ty * TILE_SIZE
-    for (const op of opsRef.current) {
-      if (opHitsTile(op, tx, ty)) {
-        ctx.save(); ctx.translate(-offX, -offY); applyOp(ctx, op); ctx.restore()
-      }
-    }
-
     tileContainerRef.current?.appendChild(canvas)
     const tile = { canvas, ctx }
     tilesRef.current.set(key, tile)
     tileOrderRef.current.push(key)
+
+    // Lazily pull this tile's persisted ops from the server instead of
+    // scanning the full op log — keeps load cost proportional to what's
+    // actually on screen, not to total canvas history.
+    const url = API_URL ? `${API_URL}/api/canvas/tile?tx=${tx}&ty=${ty}` : `/api/canvas/tile?tx=${tx}&ty=${ty}`
+    fetch(url, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(tileOps => {
+        if (tilesRef.current.get(key) !== tile) return // evicted before load finished
+        const offX = tx * TILE_SIZE, offY = ty * TILE_SIZE
+        for (const op of tileOps) {
+          ctx.save(); ctx.translate(-offX, -offY); applyOp(ctx, op); ctx.restore()
+        }
+      })
+      .catch(() => {})
+
     return tile
   }, [])
 
@@ -292,7 +295,6 @@ export default function CanvasBoard({
   }, [sessionId])
 
   const commitAndSend = useCallback((op) => {
-    opsRef.current.push(op)
     applyOpToTiles(op)
     sendOp(op)
   }, [applyOpToTiles, sendOp])
@@ -315,8 +317,13 @@ export default function CanvasBoard({
     onZoomChange?.(Math.round(INIT_SCALE * 100))
 
     if (captureRef) {
-      captureRef.current = () => {
-        if (!opsRef.current.length) return null
+      // Fetched on demand (every 5 min) rather than kept resident, since we
+      // no longer hold the full op log in memory for tile rendering.
+      captureRef.current = async () => {
+        const url = API_URL ? `${API_URL}/api/canvas` : '/api/canvas'
+        let allOps
+        try { allOps = await (await fetch(url, { cache: 'no-store' })).json() } catch { return null }
+        if (!allOps?.length) return null
         const THUMB = 256
         const off = document.createElement('canvas')
         off.width = off.height = THUMB
@@ -325,34 +332,13 @@ export default function CanvasBoard({
         ctx.fillRect(0, 0, THUMB, THUMB)
         ctx.save()
         ctx.scale(THUMB / CANVAS_W, THUMB / CANVAS_H)
-        for (const op of opsRef.current) applyOp(ctx, op)
+        for (const op of allOps) applyOp(ctx, op)
         ctx.restore()
         return off.toDataURL('image/png')
       }
     }
 
-    const url = API_URL ? `${API_URL}/api/canvas` : '/api/canvas'
-    fetch(url, { cache: 'no-store' })
-      .then(r => r.json())
-      .then(loadedOps => {
-        opsRef.current = loadedOps
-        // Redraw all tiles that were created blank before ops arrived
-        for (const [key, { ctx }] of tilesRef.current.entries()) {
-          const [tx, ty] = key.split(',').map(Number)
-          ctx.clearRect(0, 0, TILE_SIZE, TILE_SIZE)
-          ctx.fillStyle = '#ffffff'
-          ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE)
-          const offX = tx * TILE_SIZE, offY = ty * TILE_SIZE
-          for (const op of loadedOps) {
-            if (opHitsTile(op, tx, ty)) {
-              ctx.save(); ctx.translate(-offX, -offY); applyOp(ctx, op); ctx.restore()
-            }
-          }
-        }
-        // Create any visible tiles not yet in the map
-        ensureVisibleTiles()
-      })
-      .catch(() => ensureVisibleTiles())
+    ensureVisibleTiles()
 
     const connectWs = () => {
       const wsTarget = API_URL
@@ -368,12 +354,10 @@ export default function CanvasBoard({
         let msg; try { msg = JSON.parse(e.data) } catch { return }
         if (msg.type === 'op') {
           if (msg.op?.sessionId === sessionId) return
-          opsRef.current.push(msg.op)
           applyOpToTiles(msg.op)
         }
         if (msg.type === 'online') onOnlineChange?.(msg.count)
         if (msg.type === 'clear') {
-          opsRef.current = []
           for (const { ctx } of tilesRef.current.values()) {
             ctx.clearRect(0, 0, TILE_SIZE, TILE_SIZE)
             ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE)
@@ -522,7 +506,6 @@ export default function CanvasBoard({
     const pts = stroke.current
     if (pts.length > 0) {
       const op = { type: 'stroke', points: pts, color: colorRef.current, size: sizeRef.current, eraser: toolRef.current === 'eraser' }
-      opsRef.current.push(op)
       sendOp(op)
     }
     stroke.current = []
