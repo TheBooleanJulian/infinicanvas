@@ -10,7 +10,7 @@
 ![Vite](https://img.shields.io/badge/-Vite-646CFF?logo=vite&logoColor=white)
 ![Redis](https://img.shields.io/badge/-Redis-DC382D?logo=redis&logoColor=white)
 ![Zeabur](https://img.shields.io/badge/-Zeabur-6C5CE7)
-![License](https://img.shields.io/badge/license-MIT-00D4C8.svg)
+![License](https://img.shields.io/badge/license-AGPLv3%20%2B%20Commercial-00D4C8.svg)
 
 </div>
 
@@ -44,6 +44,10 @@ InfiniCanvas is a real-time collaborative drawing app built around a single, sha
 | Persistence | Redis (via `ioredis`) |
 | Image / GIF | `jimp`, `gifenc` |
 | Hosting | Zeabur (single service, frontend built via `postinstall`) |
+
+## Screenshots
+
+_Screenshots coming soon._
 
 ## Quick Start
 
@@ -132,7 +136,10 @@ Deployed on Zeabur as a single service. `npm install` triggers `postinstall`, wh
 
 ## License
 
-MIT
+This project is dual licensed.
+
+- Community Edition — [GNU Affero General Public License v3 (AGPLv3)](LICENSE). Free to use, modify, and self-host. If you distribute a modified version or run it as a network service, you must make the corresponding source available.
+- Commercial License — for organisations that want to embed, modify, or distribute this software without AGPLv3's obligations. See [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
 
 ---
 
