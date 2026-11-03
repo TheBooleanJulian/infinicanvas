@@ -1,0 +1,23 @@
+{
+  // InfiniCanvas on Cloudflare Workers (replaces server.js + Redis on Zeabur): frontend/dist as static assets and one
+  // Durable Object ("Canvas", SQLite storage) for the op log, snapshots and every WebSocket. Code in worker/.
+  // Secret: CLEAR_SECRET (POST /api/clear; unset = nobody can clear). IMPORT_TOKEN only during the one-time import.
+  "name": "infinicanvas",
+  "account_id": "c580c4403524273d1bece674117472dd",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "build": { "command": "npm ci --prefix frontend && npm run build --prefix frontend && npm ci --prefix worker" },
+  "assets": {
+    "directory": "./frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // "/" too: the client opens its WebSocket on the site root (CanvasBoard.jsx connectWs)
+    "run_worker_first": ["/", "/api/*", "/health"]
+  },
+  "durable_objects": { "bindings": [{ "name": "CANVAS", "class_name": "Canvas" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Canvas"] }],
+  // Overrides the *.thebooleanjulian.dev wildcard (Zeabur). Rollback: remove and redeploy.
+  "routes": [{ "pattern": "infini-canvas.thebooleanjulian.dev", "custom_domain": true }],
+  "observability": { "enabled": true }
+}

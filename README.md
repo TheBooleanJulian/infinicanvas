@@ -8,8 +8,7 @@
 ![Node.js](https://img.shields.io/badge/-Node.js-339933?logo=node.js&logoColor=white)
 ![React](https://img.shields.io/badge/-React-61DAFB?logo=react&logoColor=black)
 ![Vite](https://img.shields.io/badge/-Vite-646CFF?logo=vite&logoColor=white)
-![Redis](https://img.shields.io/badge/-Redis-DC382D?logo=redis&logoColor=white)
-![Zeabur](https://img.shields.io/badge/-Zeabur-6C5CE7)
+![Cloudflare Workers](https://img.shields.io/badge/-Cloudflare%20Workers-F38020?logo=cloudflare&logoColor=white)
 ![License](https://img.shields.io/badge/license-AGPLv3%20%2B%20Commercial-00D4C8.svg)
 
 </div>
@@ -18,7 +17,7 @@
 
 ## What it does
 
-InfiniCanvas is a real-time collaborative drawing app built around a single, shared 65536×65536 pixel canvas. Multiple users can draw, annotate, and create simultaneously — changes sync instantly via WebSocket and persist across restarts through Redis. The canvas is rendered as a grid of on-demand tiles so it stays performant regardless of size, and a view-only mode below 100% zoom keeps accidental edits from happening while panning around.
+InfiniCanvas is a real-time collaborative drawing app built around a single, shared 65536×65536 pixel canvas. Multiple users can draw, annotate, and create simultaneously — changes sync instantly via WebSocket and persist in a Cloudflare Durable Object. The canvas is rendered as a grid of on-demand tiles so it stays performant regardless of size, and a view-only mode below 100% zoom keeps accidental edits from happening while panning around.
 
 ## Features
 
@@ -30,7 +29,7 @@ InfiniCanvas is a real-time collaborative drawing app built around a single, sha
 - **View-only mode** — canvas is read-only below 100% zoom; zoom in to draw
 - **Tiled rendering** — 1024×1024 tiles created on demand, capped at 48 in memory to prevent OOM
 - **Real-time sync** — WebSocket broadcast; online user count displayed live
-- **Persistent history** — all ops stored in Redis and replayed on tile creation
+- **Persistent history** — all ops stored in the canvas Durable Object (SQLite) and replayed on tile creation
 - **Timelapse GIF** — canvas auto-captured every 5 minutes; downloadable as a GIF
 - **Cursor coordinates** — live XY display in the header (0,0 = canvas centre)
 - **Mobile sidebar** — toolbar collapses to a bottom bar on small screens
@@ -39,11 +38,12 @@ InfiniCanvas is a real-time collaborative drawing app built around a single, sha
 
 | Layer | Choice |
 |---|---|
-| Backend | Node.js + Express + `ws` (WebSocket) |
+| Backend (production) | Cloudflare Worker + one Durable Object (`worker/`), WebSocket hibernation |
+| Backend (legacy) | Node.js + Express + `ws` + Redis (`server.js`), same API |
 | Frontend | React + Vite |
-| Persistence | Redis (via `ioredis`) |
-| Image / GIF | `jimp`, `gifenc` |
-| Hosting | Zeabur (single service, frontend built via `postinstall`) |
+| Persistence | Durable Object SQLite storage (ops + timelapse snapshots) |
+| Image / GIF | `gifenc` + a small PNG decoder (`worker/png.js`) |
+| Hosting | Cloudflare Workers at infini-canvas.thebooleanjulian.dev |
 
 ## Screenshots
 
@@ -77,15 +77,17 @@ npm run dev          # http://localhost:5173 — proxies /api and /ws to :3001
 
 | Variable | Required | Description |
 |---|---|---|
-| `REDIS_URI` | Yes | Redis connection string, e.g. `redis://localhost:6379` |
-| `CLEAR_SECRET` | No | Secret token to authorise `POST /api/clear` |
-| `PORT` | No | Server port (default `3001`; auto-set by Zeabur) |
+| `CLEAR_SECRET` | For clearing | Secret for `POST /api/clear`. On Workers it's a secret (`npx wrangler secret put CLEAR_SECRET`); unset means nobody can clear. |
+| `REDIS_URI` | Legacy only | Redis connection string for `server.js` |
+| `PORT` | Legacy only | Server port for `server.js` (default `3001`) |
 
 ## Project Structure
 
 ```
 infinicanvas/
-├── server.js               Node.js + Express + WebSocket backend
+├── worker/                 production: Worker + Canvas Durable Object, PNG decoder, tests
+├── wrangler.jsonc
+├── server.js               legacy Node.js + Express + WebSocket backend (Redis)
 ├── package.json            Backend deps + frontend build scripts
 ├── .env.example
 └── frontend/               React + Vite frontend
@@ -111,7 +113,12 @@ infinicanvas/
 
 ## Deployment
 
-Deployed on Zeabur as a single service. `npm install` triggers `postinstall`, which builds the React frontend; `npm start` then serves both API and static files from `server.js`. Add a Redis service from the Zeabur marketplace — `REDIS_URI` is injected automatically.
+Cloudflare Workers (`wrangler.jsonc`): `npx wrangler deploy` builds the frontend and the Worker (`build.command`) and
+serves `frontend/dist` plus the API and WebSocket from one Durable Object. The client opens its WebSocket on `/`, so
+`/` is in `run_worker_first`. Tests: `cd worker && npm install && node --test`.
+
+The op log was moved from Redis on 2026-11-03 (2257 ops, verified identical); timelapse snapshots were a rolling 24 h
+window and start fresh.
 
 ## Status / Roadmap
 
@@ -126,6 +133,7 @@ Deployed on Zeabur as a single service. `npm install` triggers `postinstall`, wh
 
 ## Changelog
 
+- **2026-11-03** — Moved from Zeabur (Express + Redis) to a Cloudflare Worker + Durable Object; `/api/clear` now requires `CLEAR_SECRET`
 - **2026-04-29** — Added timelapse feature: canvas auto-captured every 5 minutes with GIF download; sidebar moved to a bottom bar on mobile
 - **2026-04-28** — Fixed browser and Cloudflare caching on `/api/canvas`; fixed eraser painting white instead of erasing; normalised `VITE_API_URL` handling
 - **2026-04-27 (stability)** — Fixed OOM crashes via smaller tiles, a 48-tile cap, and visibility-based eviction; fixed in-place tile redraw for correct persistence
