@@ -7,3 +7,5 @@ sessions.json
 frontend/node_modules/
 frontend/dist/
 .claude/
+worker/node_modules/
+.wrangler/
